@@ -153,6 +153,67 @@ Agents may rely on shared components located under `common/`, including:
 
 ---
 
+## Development & Testing
+
+This project uses a **`src/` layout**, so the package must be installed before running tests or tools.
+
+### Local development setup
+
+From the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e ".[dev]"
+```
+
+This installs the package in **editable mode** and pulls in development dependencies
+(pytest, flake8, pylint, etc.).
+
+### Running tests
+
+Run the full unit test suite:
+
+```bash
+pytest
+```
+
+Run tests with coverage:
+
+```bash
+pytest --cov=askpanda_atlas_agents --cov-report=term-missing
+```
+
+### Linting
+
+```bash
+flake8 src tests
+pylint src/askpanda_atlas_agents
+```
+
+### Common pitfalls
+
+- **`ModuleNotFoundError: askpanda_atlas_agents`**
+  - Ensure you ran:
+    ```bash
+    pip install -e .
+    ```
+  - Ensure you are in the repository root (where `pyproject.toml` lives).
+
+- **Editable install fails**
+  - Confirm the directory `src/askpanda_atlas_agents/` exists and contains
+    an `__init__.py` file.
+
+### Why editable installs?
+
+Editable installs (`pip install -e .`) are required because:
+- the project uses a `src/` layout,
+- agents are developed incrementally,
+- tests must import the package exactly as it will be installed in production.
+
+
+---
+
 ## Continuous Integration
 
 GitHub Actions are used for:
@@ -189,3 +250,5 @@ This keeps agent logic independent of the UI or orchestration framework.
 
 This repository currently represents an **architectural blueprint** and initial scaffolding.  
 It is intended to guide development and review before full implementation.
+
+Contributions and design feedback are welcome.

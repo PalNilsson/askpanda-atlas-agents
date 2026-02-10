@@ -2,8 +2,8 @@
 
 **AskPanDA-ATLAS Agents** is a collection of cooperative, Python-based agents that power the *AskPanDA-ATLAS* plugin for the **Bamboo Framework**, supporting the ATLAS Experiment.
 
-> ⚠️ **Status note**  
-> This repository is a **preliminary architectural plan** and scaffolding for later development.  
+> ⚠️ **Status note**
+> This repository is a **preliminary architectural plan** and scaffolding for later development.
 > Interfaces, agents, and repository layout are intentionally designed to be stable, but implementations will evolve.
 
 ---
@@ -146,7 +146,7 @@ Agents may rely on shared components located under `common/`, including:
 
 ## Packaging & Installation
 
-- The repository builds a single Python package:  
+- The repository builds a single Python package:
   **`askpanda-atlas-agents`**
 - Each agent provides a CLI entry point (e.g. `askpanda-metadata-agent`).
 - Optional dependencies are exposed via extras (e.g. `.[email]`, `.[vector]`).
@@ -239,7 +239,7 @@ This keeps agent logic independent of the UI or orchestration framework.
 
 ## Next Steps (Planned)
 
-- Implement the base `Agent` class and supervisor loop.
+- Implement the supervisor loop.
 - Add concrete metadata normalization and DuckDB schemas.
 - Prototype DAST email digestion on a limited dataset.
 - Define stable plugin contracts with Bamboo.
@@ -248,7 +248,7 @@ This keeps agent logic independent of the UI or orchestration framework.
 
 ## Disclaimer
 
-This repository currently represents an **architectural blueprint** and initial scaffolding.  
+This repository currently represents an **architectural blueprint** and initial scaffolding.
 It is intended to guide development and review before full implementation.
 
 Contributions and design feedback are welcome.

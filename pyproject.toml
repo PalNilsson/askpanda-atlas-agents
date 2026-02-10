@@ -72,7 +72,7 @@ py-version = "3.10"
 jobs = 0
 
 [tool.pylint.format]
-max-line-length = 100
+max-line-length = 160
 
 [tool.pylint.messages_control]
 disable = [

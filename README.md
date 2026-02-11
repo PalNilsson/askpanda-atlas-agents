@@ -1,6 +1,6 @@
 # AskPanDA-ATLAS Agents
 
-**AskPanDA-ATLAS Agents** is a collection of cooperative, Python-based agents that power the *AskPanDA-ATLAS* plugin for the **Bamboo Framework**, supporting the ATLAS Experiment.
+**AskPanDA-ATLAS Agents** is a collection of cooperative, Python-based agents that power the *AskPanDA-ATLAS* plugin for the **Bamboo Toolkit**, supporting the ATLAS Experiment.
 
 > ⚠️ **Status note**
 > This repository is a **preliminary architectural plan** and scaffolding for later development.
@@ -13,7 +13,7 @@
 - Provide a modular, testable, and pip-installable agent system for AskPanDA.
 - Separate responsibilities across focused agents (metadata, DAST, indexing, metrics, etc.).
 - Share common tooling (storage, embeddings, email parsing, metrics).
-- Integrate cleanly with the Bamboo Framework via a plugin adapter.
+- Integrate cleanly with the Bamboo Toolkit via a plugin adapter.
 - Support both lightweight local deployments and service-based execution.
 
 ---
@@ -248,9 +248,9 @@ GitHub Actions are used for:
 
 The `plugin/` package provides the integration layer between:
 - AskPanDA-ATLAS Agents
-- The Bamboo Framework
+- The Bamboo Toolkit
 
-This keeps agent logic independent of the UI or orchestration framework.
+This keeps agent logic independent of the UI or orchestration toolkit.
 
 ---
 

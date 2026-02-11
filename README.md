@@ -170,6 +170,23 @@ python3 -m pip install -e ".[dev]"
 This installs the package in **editable mode** and pulls in development dependencies
 (pytest, flake8, pylint, etc.).
 
+## Dummy Agent (template)
+
+A minimal no-op agent is included as a template and for validating the agent lifecycle and supervisor integration.
+
+- Package: `askpanda_atlas_agents.agents.dummy_agent`
+- CLI: `askpanda-dummy-agent`
+
+Run it locally:
+
+```bash
+python3 -m pip install -e ".[dev]"
+askpanda-dummy-agent --tick-interval 1.0
+```
+Stop with Ctrl+C (SIGINT) or by sending SIGTERM.
+
+When a new agent is added, remember to make an entry in pyproject.toml under [project.scripts].
+
 ### Running tests
 
 Run the full unit test suite:

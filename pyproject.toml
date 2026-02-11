@@ -51,6 +51,7 @@ askpanda-supervisor-agent = "askpanda_atlas_agents.agents.supervisor_agent.cli:m
 askpanda-index-builder-agent = "askpanda_atlas_agents.agents.index_builder_agent.cli:main"
 askpanda-feedback-agent = "askpanda_atlas_agents.agents.feedback_agent.cli:main"
 askpanda-metrics-agent = "askpanda_atlas_agents.agents.metrics_agent.cli:main"
+askpanda-dummy-agent = "askpanda_atlas_agents.agents.dummy_agent.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -1,0 +1,8 @@
+sources:
+  - name: example_cric
+    type: cric_queue_data
+    mode: file
+    path: src/askpanda_atlas_agents/resources/config/example_queue.json
+    interval_s: 1
+duckdb_path: ":memory:"
+tick_interval_s: 1.0

@@ -5,87 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "askpanda-atlas-agents"
 version = "0.0.0"
-description = "Modular Python agents powering the AskPanDA-ATLAS plugin for the Bamboo Framework (preliminary plan)."
-readme = "README.md"
+description = "askpanda agents"
 requires-python = ">=3.10"
-license = "Apache-2.0"
-authors = [
-  { name = "AskPanDA-ATLAS Contributors" }
-]
-keywords = ["ATLAS", "PanDA", "AskPanDA", "Bamboo", "agents", "RAG"]
-classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
-  "Intended Audience :: Science/Research",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-]
-
-dependencies = [
-  "pydantic>=2.6",
-  "pyyaml>=6.0",
-  "requests>=2.31",
-  "tenacity>=8.2",
-]
-
-[project.optional-dependencies]
-dev = [
-  "pytest>=8.0",
-  "pytest-cov>=5.0",
-  "flake8>=7.0",
-  "pylint>=3.0",
-  "mypy>=1.8",
-]
-storage = ["duckdb>=0.10"]
-vector = ["chromadb>=0.5"]
-email = []
-grafana = []
-panda = []
-
-[project.scripts]
-askpanda-metadata-agent = "askpanda_atlas_agents.agents.metadata_agent.cli:main"
-askpanda-dast-agent = "askpanda_atlas_agents.agents.dast_agent.cli:main"
-askpanda-supervisor-agent = "askpanda_atlas_agents.agents.supervisor_agent.cli:main"
-askpanda-index-builder-agent = "askpanda_atlas_agents.agents.index_builder_agent.cli:main"
-askpanda-feedback-agent = "askpanda_atlas_agents.agents.feedback_agent.cli:main"
-askpanda-metrics-agent = "askpanda_atlas_agents.agents.metrics_agent.cli:main"
-askpanda-dummy-agent = "askpanda_atlas_agents.agents.dummy_agent.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
-addopts = "-q"
-
-[tool.flake8]
-max-line-length = 160
-extend-ignore = ["E203", "W503"]
-
-[tool.pylint.main]
-py-version = "3.10"
-jobs = 0
-
-[tool.pylint.format]
-max-line-length = 160
-
-[tool.pylint.messages_control]
-disable = [
-  "missing-module-docstring",
-  "missing-class-docstring",
-  "missing-function-docstring",
-  "too-few-public-methods",
-]
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = false
-no_implicit_optional = true

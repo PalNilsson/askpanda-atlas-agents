@@ -20,7 +20,7 @@
 
 ## Agents Overview
 
-### `metadata-agent`
+### `ingestion-agent`
 - Periodically fetches ATLAS queue/site metadata.
 - Normalizes and loads data into **DuckDB** for fast local queries.
 - Optionally pulls BigPanDA task/job metadata snapshots for debugging or analytics.
@@ -95,7 +95,7 @@ askpanda-atlas-agents/
 │  └─ askpanda_atlas_agents/
 │     ├─ common/                # shared utilities (storage, panda, email, metrics)
 │     ├─ agents/                # individual agents
-│     │  ├─ metadata_agent/
+│     │  ├─ ingestion_agent/
 │     │  ├─ dast_agent/
 │     │  ├─ supervisor_agent/
 │     │  ├─ index_builder_agent/
@@ -148,10 +148,28 @@ Agents may rely on shared components located under `common/`, including:
 
 - The repository builds a single Python package:
   **`askpanda-atlas-agents`**
-- Each agent provides a CLI entry point (e.g. `askpanda-metadata-agent`).
+- Each agent provides a CLI entry point (e.g. `askpanda-ingestion-agent`).
 - Optional dependencies are exposed via extras (e.g. `.[email]`, `.[vector]`).
 
 ---
+
+## Requirements
+
+The project now provides a `requirements.txt` file for convenience.
+
+### Install runtime dependencies
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Install in editable mode (recommended for development)
+
+```bash
+pip install -e .
+```
 
 ## Development & Testing
 

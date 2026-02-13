@@ -18,6 +18,7 @@
 # Authors
 # - Paul Nilsson, paul.nilsson@cern.ch, 2026
 
+"""Tests for the dummy agent."""
 from __future__ import annotations
 
 import threading
@@ -28,6 +29,7 @@ from askpanda_atlas_agents.agents.dummy_agent.agent import DummyAgent, DummyAgen
 
 
 def test_dummy_agent_lifecycle_start_tick_stop() -> None:
+    """Test that the dummy agent follows the standard lifecycle correctly."""
     agent = DummyAgent(config=DummyAgentConfig(tick_interval_s=0.01))
 
     assert agent.state == AgentState.NEW
@@ -48,6 +50,7 @@ def test_dummy_agent_lifecycle_start_tick_stop() -> None:
 
 
 def test_dummy_agent_run_forever_stops_on_request() -> None:
+    """Test that the dummy agent's run_forever loop stops when requested."""
     agent = DummyAgent(config=DummyAgentConfig(tick_interval_s=0.01))
 
     t = threading.Thread(target=agent.run_forever, daemon=True)

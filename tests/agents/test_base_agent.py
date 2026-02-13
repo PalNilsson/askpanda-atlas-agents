@@ -61,12 +61,21 @@ class DummyAgent(Agent):
 
 
 def _is_utc_dt(value: Optional[datetime]) -> bool:
+    """Check if a datetime value is UTC-aware.
+
+    Args:
+        value: Datetime to check, or None.
+
+    Returns:
+        True if the value is a UTC-aware datetime, False otherwise.
+    """
     if value is None:
         return False
     return value.tzinfo is not None and value.tzinfo.utcoffset(value) == timezone.utc.utcoffset(value)
 
 
 def test_start_transitions_to_running_and_is_idempotent() -> None:
+    """Test that start() transitions agent to RUNNING and is idempotent."""
     agent = DummyAgent()
     assert agent.state == AgentState.NEW
 
@@ -81,6 +90,7 @@ def test_start_transitions_to_running_and_is_idempotent() -> None:
 
 
 def test_tick_updates_timestamps_and_success_state() -> None:
+    """Test that tick() updates timestamps and success state correctly."""
     agent = DummyAgent()
     agent.start()
 
@@ -104,6 +114,7 @@ def test_tick_updates_timestamps_and_success_state() -> None:
 
 
 def test_tick_raises_if_not_running() -> None:
+    """Test that tick() raises RuntimeError when agent is not running."""
     agent = DummyAgent()
     with pytest.raises(RuntimeError, match="not running"):
         agent.tick()
@@ -116,6 +127,7 @@ def test_tick_raises_if_not_running() -> None:
 
 
 def test_tick_failure_marks_failed_and_sets_error_fields() -> None:
+    """Test that exceptions in tick() mark the agent as FAILED with error details."""
     agent = DummyAgent()
     agent.start()
     agent.fail_tick = True
@@ -134,6 +146,7 @@ def test_tick_failure_marks_failed_and_sets_error_fields() -> None:
 
 
 def test_start_failure_marks_failed() -> None:
+    """Test that exceptions in start() mark the agent as FAILED."""
     agent = DummyAgent()
     agent.fail_start = True
 
@@ -149,6 +162,7 @@ def test_start_failure_marks_failed() -> None:
 
 
 def test_stop_transitions_to_stopped_and_is_idempotent() -> None:
+    """Test that stop() transitions agent to STOPPED and is idempotent."""
     agent = DummyAgent()
     agent.start()
 
@@ -163,6 +177,7 @@ def test_stop_transitions_to_stopped_and_is_idempotent() -> None:
 
 
 def test_health_includes_custom_details() -> None:
+    """Test that health() includes agent-specific custom details."""
     agent = DummyAgent()
     agent.start()
     report = agent.health()
@@ -175,6 +190,7 @@ def test_health_includes_custom_details() -> None:
 
 
 def test_stop_failure_sets_error_but_ends_stopped() -> None:
+    """Test that exceptions in stop() set error but still transition to STOPPED."""
     agent = DummyAgent()
     agent.start()
     agent.fail_stop = True

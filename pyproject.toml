@@ -13,3 +13,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+askpanda-document-monitor-agent = "askpanda_atlas_agents.agents.document_monitor_agent.cli:main"

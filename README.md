@@ -20,12 +20,24 @@
 
 ## Agents Overview
 
-### `ingestion-agent`
+### `ingestion-agent` (in development)
 - Periodically fetches ATLAS queue/site metadata.
 - Normalizes and loads data into **DuckDB** for fast local queries.
 - Optionally pulls BigPanDA task/job metadata snapshots for debugging or analytics.
 
-### `dast-agent`
+### `document-monitor-agent` (in development)
+
+Directory-watching agent that ingests files into ChromaDB.
+
+Documentation: [document_monitor_agent](./README-document_monitor_agent.md)
+
+- Watches a directory for new or changed documents
+- Extracts and chunks text
+- Computes deterministic chunk IDs
+- Embeds chunks
+- Stores vectors + metadata in a local ChromaDB collection.
+
+### `dast-agent` (planned)
 - Extracts DAST help-list email threads (e.g., via Outlook).
 - Converts threads into structured JSON.
 - Runs a daily *digest* pass producing:
@@ -35,23 +47,23 @@
   - Resolution status
 - Feeds RAG corpora and optional fine-tuning datasets.
 
-### `supervisor-agent`
+### `supervisor-agent` (planned)
 - Acts as a control plane.
 - Ensures required agents/services are running.
 - Restarts agents on failure.
 - Enforces schedules.
 - Provides a single entry point to bring up the full system.
 
-### `index-builder-agent`
+### `index-builder-agent` (planned - or replace with document monitor agent)
 - Builds embedding indices for plugin corpora.
 - Sources include DAST digests, documentation, and curated knowledge.
 - Supports pluggable vector stores (e.g., ChromaDB).
 
-### `feedback-agent`
+### `feedback-agent` (planned)
 - Captures user feedback from AskPanDA (e.g., *helpful / not helpful*).
 - Stores feedback in structured form for later analysis.
 
-### `metrics-agent`
+### `metrics-agent` (planned)
 - Collects structured metrics from Bamboo and agents:
   - Latency
   - Tool usage

@@ -6,7 +6,8 @@ import argparse
 import logging
 import signal
 import sys
-from typing import Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 from .agent import DocumentMonitorAgent
 from .agent.embedder_langchain_hf import LangchainHuggingFaceAdapter
@@ -15,32 +16,61 @@ LOG = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build CLI argument parser.
+    """Build the CLI argument parser for the document monitor agent.
+
+    Defines all supported command-line flags with their types, defaults,
+    and help strings.
 
     Returns:
-        Configured ArgumentParser instance.
+        argparse.ArgumentParser: Configured parser ready to call
+            ``parse_args()`` on.
     """
     p = argparse.ArgumentParser(prog="askpanda-document-monitor-agent")
     p.add_argument("--dir", "-d", required=True, help="Directory to monitor (e.g. ./documents)")
     p.add_argument("--poll-interval", type=int, default=10, help="Poll interval seconds")
     p.add_argument("--chroma-dir", default=".chromadb", help="ChromaDB persist directory")
-    p.add_argument("--checkpoint-file", default=".document_monitor/checkpoints.json", help="Checkpoint file path")
+    p.add_argument(
+        "--checkpoint-file",
+        default=".document_monitor/checkpoints.json",
+        help="Checkpoint file path",
+    )
     p.add_argument("--chunk-size", type=int, default=1000, help="Chunk size in characters")
     p.add_argument("--chunk-overlap", type=int, default=200, help="Chunk overlap in characters")
     return p
 
 
-def main(argv: Optional[list[str]] = None) -> None:
-    """Run the agent CLI.
+def _build_embedder() -> LangchainHuggingFaceAdapter:
+    """Instantiate the HuggingFace sentence-embedding model.
+
+    Uses the ``all-MiniLM-L6-v2`` model, a compact but accurate
+    general-purpose sentence transformer.
+
+    Returns:
+        LangchainHuggingFaceAdapter: Ready-to-use embedding adapter.
+    """
+    return LangchainHuggingFaceAdapter(model_name="all-MiniLM-L6-v2")
+
+
+def _build_agent(args: argparse.Namespace) -> DocumentMonitorAgent:
+    """Construct a :class:`DocumentMonitorAgent` from parsed CLI arguments.
 
     Args:
-        argv: Optional argument list (defaults to sys.argv[1:]).
+        args: Namespace produced by :func:`build_parser` after calling
+            ``parse_args()``.  The following attributes are consumed:
+
+            * ``dir`` – directory path to monitor.
+            * ``poll_interval`` – polling cadence in seconds.
+            * ``chunk_size`` – document chunk size in characters.
+            * ``chunk_overlap`` – overlap between consecutive chunks in
+              characters.
+            * ``checkpoint_file`` – path to the JSON checkpoint file.
+            * ``chroma_dir`` – directory used to persist ChromaDB data.
+
+    Returns:
+        DocumentMonitorAgent: Fully configured agent instance, not yet
+            started.
     """
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    embedder = LangchainHuggingFaceAdapter(model_name="all-MiniLM-L6-v2")
-    agent = DocumentMonitorAgent(
+    return DocumentMonitorAgent(
         name="document_monitor_agent",
         directory=args.dir,
         poll_interval_sec=args.poll_interval,
@@ -48,12 +78,32 @@ def main(argv: Optional[list[str]] = None) -> None:
         chunk_overlap=args.chunk_overlap,
         checkpoint_file=args.checkpoint_file,
         chroma_dir=args.chroma_dir,
-        embedder=embedder,
+        embedder=_build_embedder(),
     )
 
-    def _handler(_signum, _frame):
+
+def _make_signal_handler(
+    agent: DocumentMonitorAgent,
+) -> Callable[[int, Any], None]:
+    """Create a POSIX signal handler that gracefully stops *agent*.
+
+    The returned callable is suitable for use with :func:`signal.signal`.
+    It attempts ``agent.request_stop()`` first, falls back to
+    ``agent.stop()``, and logs a warning if neither method exists.
+    All exceptions raised during shutdown are caught and logged so the
+    signal handler itself never raises.
+
+    Args:
+        agent: The running agent instance to shut down when a signal is
+            received.
+
+    Returns:
+        Callable[[int, Any], None]: A signal handler with the standard
+            ``(signum, frame)`` signature.
+    """
+
+    def _handler(_signum: int, _frame: Any) -> None:
         LOG.info("Signal received; attempting graceful shutdown.")
-        # Prefer request_stop if available; else call stop()
         try:
             if hasattr(agent, "request_stop"):
                 agent.request_stop()
@@ -64,45 +114,113 @@ def main(argv: Optional[list[str]] = None) -> None:
         except Exception:
             LOG.exception("Error while requesting agent to stop.")
 
-    # Helper to check agent run state robustly across different Agent implementations
-    def agent_is_running(obj) -> bool:
-        """Return True if the agent appears to be in a running state.
+    return _handler
 
-        This function is defensive: it supports several common state shapes:
-        - Enum-like object with .name attribute (e.g., AgentState.RUNNING)
-        - Instance attribute e.g. obj.RUNNING and obj.state == obj.RUNNING
-        - String-ish state where str(state).upper() == "RUNNING"
-        """
-        state = getattr(obj, "state", None)
-        if state is None:
-            return False
-        # Case 1: state is an Enum-like with .name
-        name = getattr(state, "name", None)
-        if isinstance(name, str):
-            return name.upper() == "RUNNING"
-        # Case 2: instance has a RUNNING attribute constant and state equals it
-        if hasattr(obj, "RUNNING"):
-            try:
-                if state == getattr(obj, "RUNNING"):
-                    return True
-            except Exception:
-                pass
-        # Case 3: fallback to string comparison of state
+
+def _agent_is_running(obj: Any) -> bool:
+    """Return ``True`` if *obj* appears to be in a ``RUNNING`` state.
+
+    The check is intentionally defensive and supports several common
+    state representations used across different agent implementations:
+
+    * **Enum-like**: ``obj.state`` has a ``.name`` attribute (e.g.
+      ``AgentState.RUNNING``).  The name is compared case-insensitively
+      to ``"RUNNING"``.
+    * **Constant attribute**: ``obj`` exposes a ``RUNNING`` class
+      attribute and ``obj.state == obj.RUNNING``.
+    * **String fallback**: ``str(obj.state).upper()`` equals or ends
+      with ``"RUNNING"``.
+
+    Args:
+        obj: Any object that may expose a ``state`` attribute describing
+            its current lifecycle phase.
+
+    Returns:
+        bool: ``True`` when the agent is running, ``False`` when the
+            state is absent, unrecognised, or indicates a non-running
+            phase.
+    """
+    state = getattr(obj, "state", None)
+    if state is None:
+        return False
+
+    # Case 1: state is an Enum-like with .name
+    name = getattr(state, "name", None)
+    if isinstance(name, str):
+        return name.upper() == "RUNNING"
+
+    # Case 2: instance has a RUNNING attribute constant and state equals it
+    if hasattr(obj, "RUNNING"):
         try:
-            return str(state).upper().endswith("RUNNING") or str(state).upper() == "RUNNING"
+            if state == getattr(obj, "RUNNING"):
+                return True
         except Exception:
-            return False
+            pass
 
+    # Case 3: fallback to string comparison of state
+    try:
+        return str(state).upper().endswith("RUNNING") or str(state).upper() == "RUNNING"
+    except Exception:
+        return False
+
+
+def _run_agent(agent: DocumentMonitorAgent) -> None:
+    """Start *agent* and block until it stops or is interrupted.
+
+    Calls ``agent.start()``, then repeatedly invokes ``agent.tick()``
+    for as long as :func:`_agent_is_running` returns ``True``.
+
+    Shutdown is triggered by one of the following:
+
+    * The agent transitions out of the running state on its own.
+    * A ``KeyboardInterrupt`` (``SIGINT``) is received, which causes
+      ``agent.request_stop()`` to be called before the loop exits.
+    * An OS signal handled by :func:`_make_signal_handler` sets the
+      agent's internal stop flag, causing :func:`_agent_is_running` to
+      return ``False`` on the next iteration.
+
+    ``agent.stop()`` is always called in the ``finally`` block to ensure
+    resources are released regardless of how the loop exits.
+
+    Args:
+        agent: A started (or about-to-be-started) agent instance that
+            exposes ``start()``, ``tick()``, ``request_stop()``, and
+            ``stop()`` methods.
+    """
     agent.start()
     try:
-        # Run until the agent's state becomes non-running (or request_stop() is called)
-        while agent_is_running(agent):
+        while _agent_is_running(agent):
             agent.tick()
     except KeyboardInterrupt:
         LOG.info("KeyboardInterrupt received")
         agent.request_stop()
     finally:
         agent.stop()
+
+
+def main(argv: Optional[list[str]] = None) -> None:
+    """Run the document monitor agent from the command line.
+
+    This is the top-level entry point wired up in ``pyproject.toml``.
+    It parses arguments, configures logging, builds the agent, registers
+    a ``SIGTERM`` handler for graceful shutdown, and hands off to
+    :func:`_run_agent`.
+
+    Args:
+        argv: Argument list to parse.  When ``None`` (the default),
+            :data:`sys.argv` ``[1:]`` is used automatically by
+            :mod:`argparse`.
+    """
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    agent = _build_agent(args)
+    signal.signal(signal.SIGTERM, _make_signal_handler(agent))
+    _run_agent(agent)
 
 
 if __name__ == "__main__":

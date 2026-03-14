@@ -79,5 +79,3 @@ class DuckDBStore:
             "INSERT OR REPLACE INTO snapshots VALUES (?, ?, ?, ?, ?, ?)",
             [snapshot_id, source, datetime.now(timezone.utc), content_hash, ok, error],
         )
-
-

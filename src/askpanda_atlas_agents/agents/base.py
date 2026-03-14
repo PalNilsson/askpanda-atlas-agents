@@ -29,6 +29,7 @@ class AgentState(str, Enum):
     STOPPED = "stopped"
     FAILED = "failed"
 
+
 @dataclass(frozen=True)
 class HealthReport:
     """Agent health and status report.
@@ -70,6 +71,7 @@ class HealthReport:
             "error": self.error,
             "details": dict(self.details),
         }
+
 
 class Agent(ABC):
     """Abstract base class for all AskPanDA-ATLAS agents.

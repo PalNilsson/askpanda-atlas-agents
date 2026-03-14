@@ -43,6 +43,7 @@ class IngestionAgentConfig:
     duckdb_path: str = ':memory:'
     tick_interval_s: float = 1.0
 
+
 class IngestionAgent(Agent):
     """Agent for periodic ingestion of PanDA data sources.
 

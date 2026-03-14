@@ -131,6 +131,8 @@ conda init zsh   # or 'conda init bash' if you use bash
 
 Then restart your terminal. Alternatively, download the installer directly from [github.com/conda-forge/miniforge](https://github.com/conda-forge/miniforge).
 
+PyTorch is installed via conda because conda provides pre-compiled binaries that are tested for your platform and architecture, avoiding common ABI and CUDA compatibility issues. The remaining packages are installed with pip because they are not available on the conda channels (or the conda versions lag behind), but they are pure Python or have wheels that install cleanly once PyTorch is already in place. As a rule: use conda for the heavy native dependencies, pip for everything else.
+
 ### Apple Silicon
 
 > Use Python 3.12 or earlier. Python 3.13+ is not yet reliably supported by ML libraries such as PyTorch and sentence-transformers.
@@ -149,6 +151,21 @@ conda create -n askpanda python=3.12 -y
 conda activate askpanda
 conda install -c pytorch -c conda-forge pytorch -y
 pip install sentence-transformers langchain langchain-community chromadb pdfminer.six python-docx
+```
+
+### Starting a new session
+
+Once the environment is set up, you only need to activate it at the start of each session:
+
+```bash
+conda activate askpanda
+```
+
+To verify everything is in order:
+
+```bash
+conda info
+python --version
 ```
 
 ### Switching from a virtualenv

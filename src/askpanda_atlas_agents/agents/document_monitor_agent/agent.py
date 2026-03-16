@@ -59,7 +59,7 @@ class DocumentMonitorAgent(Agent):
     ) -> None:
         super().__init__(name=name)
         chroma_dir_abs = str(Path(chroma_dir).resolve())
-        LOG.info("ChromaDB persist directory: %s", chroma_dir_abs)
+        LOG.info(f"ChromaDB persist directory: {chroma_dir_abs}")
         self.directory = Path(directory)
         self.poll_interval_sec = poll_interval_sec
         self.chunk_size = chunk_size

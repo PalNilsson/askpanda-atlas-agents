@@ -279,7 +279,7 @@ class TestBigPandaJobsFetcher:
             "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
             return_value=mock_response,
         ) as mock_get, patch(
-            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.time.sleep"
+            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.BigPandaJobsFetcher._interruptible_sleep"
         ) as mock_sleep:
             fetcher.run_cycle(force=True)
 
@@ -303,7 +303,7 @@ class TestBigPandaJobsFetcher:
             "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
             return_value=mock_response,
         ), patch(
-            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.time.sleep"
+            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.BigPandaJobsFetcher._interruptible_sleep"
         ) as mock_sleep:
             fetcher.run_cycle(force=True)
 
@@ -359,7 +359,7 @@ class TestOneShot:
             "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
             return_value=mock_response,
         ), patch(
-            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.time.sleep"
+            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.BigPandaJobsFetcher._interruptible_sleep"
         ) as mock_sleep:
             fetcher.run_cycle(force=True, one_shot=True)
 
@@ -377,7 +377,7 @@ class TestOneShot:
             "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
             return_value=mock_response,
         ), patch(
-            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.time.sleep"
+            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.BigPandaJobsFetcher._interruptible_sleep"
         ) as mock_sleep:
             fetcher.run_cycle(force=True, one_shot=False)
 
@@ -421,7 +421,7 @@ class TestOneShot:
             "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
             return_value=mock_response,
         ), patch(
-            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.time.sleep"
+            "askpanda_atlas_agents.agents.ingestion_agent.bigpanda_jobs_fetcher.BigPandaJobsFetcher._interruptible_sleep"
         ) as mock_sleep:
             agent.tick_once()
 

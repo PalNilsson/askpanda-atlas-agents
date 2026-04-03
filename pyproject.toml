@@ -30,3 +30,4 @@ where = ["src"]
 [project.scripts]
 askpanda-document-monitor-agent = "askpanda_atlas_agents.agents.document_monitor_agent.cli:main"
 askpanda-ingestion-agent = "askpanda_atlas_agents.agents.ingestion_agent.cli:main"
+askpanda-cric-agent = "askpanda_atlas_agents.agents.cric_agent.cli:main"

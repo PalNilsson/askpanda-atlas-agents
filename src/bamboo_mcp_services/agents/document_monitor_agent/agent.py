@@ -167,7 +167,7 @@ class DocumentMonitorAgent(Agent):
         Errors are caught per-file so one bad file does not abort the whole cycle.
         """
         try:
-            files = sorted([p for p in self.directory.iterdir() if p.is_file()])
+            files = sorted([p for p in self.directory.rglob("*") if p.is_file()])
         except Exception as exc:
             LOG.exception("Failed listing directory %s: %s", self.directory, exc)
             self._last_error = str(exc)

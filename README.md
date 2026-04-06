@@ -14,6 +14,7 @@
 | `document-monitor-agent` | ✅ Ready |
 | `ingestion-agent` | ✅ Ready |
 | `cric-agent` | ✅ Ready |
+| `github-doc-sync-agent` | ✅ Ready |
 | `dast-agent` | 📋 Planned |
 | `supervisor-agent` | 📋 Planned |
 | `index-builder-agent` | 📋 Planned |
@@ -80,6 +81,22 @@ duckdb cric.db "SELECT queue, status, cloud, tier FROM queuedata LIMIT 10"
 
 Full documentation: [README-cric_agent.md](./README-cric_agent.md)
 
+### Run the GitHub documentation sync agent
+
+```bash
+# Sync all configured repositories once and exit:
+bamboo-github-sync --config src/bamboo_mcp_services/resources/config/github-doc-sync-agent.yaml --once
+
+# Run as a long-lived daemon (checks for new commits every hour):
+bamboo-github-sync --config src/bamboo_mcp_services/resources/config/github-doc-sync-agent.yaml
+
+# Authenticate to raise the GitHub API rate limit (required for private repos):
+export GITHUB_TOKEN=ghp_your_token_here
+bamboo-github-sync --config repos.yaml --once
+```
+
+Full documentation: [README-github_doc_sync_agent.md](./README-github_doc_sync_agent.md)
+
 ---
 
 ## Agents
@@ -120,7 +137,27 @@ Key features:
 
 → [Full documentation](./README-cric_agent.md)
 
-### `dast-agent` 📋 Planned
+### `github-doc-sync-agent` ✅ Ready
+
+Periodically polls one or more GitHub repositories, downloads changed `.md`
+and `.rst` documentation files, and writes normalised Markdown to a local
+directory for RAG ingestion.  Uses the GitHub REST API with commit SHA caching
+so that only repositories with new commits incur tree-fetch and download
+requests — unchanged repositories are skipped with a single API call.
+
+The agent is a **file writer only**.  It is designed to feed the
+`document-monitor-agent`, which handles chunking, embedding, and ChromaDB
+insertion.  The two agents are decoupled and can run independently.
+
+Key features:
+- Multi-repository support via a YAML config file; per-repo branch, glob
+  filters, and `within_hours` recency check
+- SHA-based incremental sync — full download only when new commits are detected
+- RST → Markdown conversion and YAML frontmatter injection for RAG-ready output
+- Per-repo failure isolation — one failing repository never aborts the others
+- `GITHUB_TOKEN` support to raise the API rate limit from 60 to 5,000 req/hour
+
+→ [Full documentation](./README-github_doc_sync_agent.md)
 
 Will extract DAST help-list email threads (e.g. via Outlook), convert them into structured JSON, and run a daily digest pass producing cleaned Q/A pairs, thread summaries, tags, and resolution status. Output feeds RAG corpora and optional fine-tuning datasets.
 
@@ -181,6 +218,7 @@ bamboo-mcp-services/
 ├─ README-document_monitor_agent.md
 ├─ README-ingestion_agent.md
 ├─ README-cric_agent.md
+├─ README-github_doc_sync_agent.md
 ├─ pyproject.toml
 ├─ requirements.txt
 ├─ scripts/
@@ -202,6 +240,11 @@ bamboo-mcp-services/
 │     │  │  ├─ agent.py
 │     │  │  ├─ cric_fetcher.py
 │     │  │  └─ cli.py
+│     │  ├─ github_doc_sync_agent/
+│     │  │  ├─ agent.py
+│     │  │  ├─ github_doc_syncer.py
+│     │  │  ├─ github_markdown_sync.py  # vendored from github-documentation-sync
+│     │  │  └─ cli.py
 │     │  ├─ document_monitor_agent/
 │     │  ├─ dummy_agent/
 │     │  ├─ dast_agent/              # planned
@@ -213,11 +256,13 @@ bamboo-mcp-services/
 │     └─ resources/
 │        └─ config/
 │           ├─ ingestion-agent.yaml
-│           └─ cric-agent.yaml
+│           ├─ cric-agent.yaml
+│           └─ github-doc-sync-agent.yaml
 ├─ tests/
 │  └─ agents/
 │     ├─ ingestion_agent/
 │     ├─ cric_agent/
+│     ├─ github_doc_sync_agent/
 │     ├─ dummy_agent/
 │     └─ test_base_agent.py
 └─ .github/

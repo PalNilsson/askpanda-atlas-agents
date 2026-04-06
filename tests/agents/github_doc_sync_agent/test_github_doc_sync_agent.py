@@ -593,3 +593,72 @@ class TestCLIMain:
                 ["--config", str(cfg), "--once", "--log-file", "/dev/null"]
             )
         assert result == 0
+
+
+# ===========================================================================
+# github_markdown_sync — within_hours first-run behaviour
+# ===========================================================================
+
+class TestWithinHoursFirstRun:
+    """within_hours must be ignored on a first run (no prior sync state)."""
+
+    _GET_LATEST = (
+        "bamboo_mcp_services.agents.github_doc_sync_agent"
+        ".github_markdown_sync.get_latest_commit"
+    )
+    _GET_TREE = (
+        "bamboo_mcp_services.agents.github_doc_sync_agent"
+        ".github_markdown_sync._get_tree"
+    )
+    _DOWNLOAD = (
+        "bamboo_mcp_services.agents.github_doc_sync_agent"
+        ".github_markdown_sync._download_file"
+    )
+
+    def _old_commit(self):
+        """Return a (sha, datetime) tuple for a commit that is 200 hours old."""
+        from datetime import timedelta
+        sha = "abc123def456" * 3
+        dt = datetime.now(tz=timezone.utc) - timedelta(hours=200)
+        return sha, dt
+
+    def test_first_run_downloads_despite_old_commit(self, tmp_path):
+        """No state file + within_hours exceeded → should still download."""
+        cfg = RepoConfig(
+            name="owner/repo",
+            destination=str(tmp_path / "raw"),
+            within_hours=10,      # commit is 200h old — would normally skip
+            normalize_for_rag=False,
+        )
+        sha, dt = self._old_commit()
+        with patch(self._GET_LATEST, return_value=(sha, dt)), \
+             patch(self._GET_TREE, return_value=[]), \
+             patch(self._DOWNLOAD) as mock_dl:
+            from bamboo_mcp_services.agents.github_doc_sync_agent.github_markdown_sync import sync_repo
+            sync_repo(cfg)
+        # _get_tree was called (not skipped), even though commit is old
+        mock_dl.assert_not_called()   # no blobs, so no downloads — but we got past the gate
+
+    def test_second_run_skips_old_commit(self, tmp_path):
+        """State file present + within_hours exceeded → should skip."""
+        import json
+        dest = tmp_path / "raw"
+        dest.mkdir()
+        state_path = dest / ".sync_state.json"
+        state_path.write_text(json.dumps({
+            "last_commit_sha": "oldhash",
+            "last_sync_time": "2026-01-01T00:00:00+00:00",
+            "files_downloaded": 5,
+        }))
+        cfg = RepoConfig(
+            name="owner/repo",
+            destination=str(dest),
+            within_hours=10,
+            normalize_for_rag=False,
+        )
+        sha, dt = self._old_commit()
+        with patch(self._GET_LATEST, return_value=(sha, dt)), \
+             patch(self._GET_TREE) as mock_tree:
+            from bamboo_mcp_services.agents.github_doc_sync_agent.github_markdown_sync import sync_repo
+            sync_repo(cfg)
+        mock_tree.assert_not_called()  # skipped before tree fetch

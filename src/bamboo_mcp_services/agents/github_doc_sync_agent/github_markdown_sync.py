@@ -109,9 +109,14 @@ def get_latest_commit(
         r = requests.get(url, params=params, timeout=30)
         r.raise_for_status()
     except requests.HTTPError as exc:
+        status = exc.response.status_code
+        hint = (
+            f" (is the branch name '{branch}' correct?)"
+            if status == 404 and branch
+            else ""
+        )
         raise RuntimeError(
-            f"GitHub API error for {owner}/{repo}: "
-            f"{exc.response.status_code} {exc.response.reason}"
+            f"GitHub API error for {owner}/{repo}: {status} {exc.response.reason}{hint}"
         ) from exc
     except requests.RequestException as exc:
         raise RuntimeError(f"Network error fetching {owner}/{repo}: {exc}") from exc
@@ -338,12 +343,22 @@ def sync_repo(cfg: RepoConfig) -> None:
     """
     owner, repo_name = parse_repo(cfg.name)
     dest_root = Path(cfg.destination)
-    state_path = dest_root / ".sync_state.json"
+
+    # Each repo gets its own subdirectory under dest_root so that multiple
+    # repos can share a common destination without name collisions.  The state
+    # file lives inside that subdirectory so it is removed along with the files
+    # when the directory is deleted, and each repo's state is fully independent.
+    dest = dest_root / owner / repo_name
+    dest.mkdir(parents=True, exist_ok=True)
+    state_path = dest / ".sync_state.json"
     state = load_state(state_path)
 
     sha, commit_dt = get_latest_commit(owner, repo_name, cfg.branch)
 
-    if cfg.within_hours is not None:
+    if cfg.within_hours is not None and state.last_commit_sha is not None:
+        # Only apply the recency gate when we have already synced this repo at
+        # least once.  On a first run (no state file) we always download,
+        # regardless of how old the latest commit is.
         now = datetime.now(tz=timezone.utc)
         age_hours = (now - commit_dt).total_seconds() / 3600
         if age_hours > cfg.within_hours:

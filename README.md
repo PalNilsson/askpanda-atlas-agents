@@ -24,6 +24,10 @@
 
 ## Getting started
 
+For full setup instructions including conda environment creation, the DuckDB
+CLI install, pre-commit hooks, and the returning-developer quick-resume
+sequence, see **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
+
 ### Install
 
 ```bash

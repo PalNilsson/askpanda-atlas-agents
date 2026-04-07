@@ -327,3 +327,38 @@ The `plugin/` package provides the integration layer between Bamboo MCP Services
 ## Contributing
 
 Design feedback and contributions are welcome. This repository currently represents an architectural blueprint guiding development — interfaces are intended to be stable, but implementations will evolve.
+
+### Repository setup
+
+The canonical repository is at **https://github.com/BNLNPPS/bamboo-mcp-services**. Development follows a standard fork-and-pull-request workflow.
+
+First-time setup:
+
+```bash
+# Clone your fork
+git clone https://github.com/<your-username>/bamboo-mcp-services.git
+cd bamboo-mcp-services
+
+# Add the canonical repo as upstream
+git remote add upstream https://github.com/BNLNPPS/bamboo-mcp-services.git
+
+# Verify
+git remote -v
+# origin    https://github.com/<your-username>/bamboo-mcp-services.git (fetch)
+# origin    https://github.com/<your-username>/bamboo-mcp-services.git (push)
+# upstream  https://github.com/BNLNPPS/bamboo-mcp-services.git (fetch)
+# upstream  https://github.com/BNLNPPS/bamboo-mcp-services.git (push)
+```
+
+Day-to-day workflow:
+
+```bash
+# Push your changes to your fork
+git push origin master
+
+# Open a pull request from your fork to BNLNPPS/bamboo-mcp-services via GitHub
+
+# Keep your fork in sync with upstream
+git fetch upstream
+git merge upstream/master
+```

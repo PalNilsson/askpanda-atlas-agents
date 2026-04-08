@@ -374,11 +374,11 @@ IngestionAgent
 │   ├── generic sources    — file/URL sources, each with their own interval
 │   └── BigPandaJobsFetcher.run_cycle()
 │       ├── interval check (skip if < cycle_interval_s since last run)
-│       └── for each queue:
+│       └── for each queue (logs progress: "processing queue 'X' (N/total)"):
 │           ├── GET https://bigpanda.cern.ch/jobs/?computingsite=<Q>&json&hours=1
 │           ├── _upsert_jobs()        → jobs table
 │           ├── _insert_summary()     → selectionsummary table
-│           ├── _insert_errors()      → errors_by_count table
+│           ├── _insert_errors()      → errors_by_count table      (all three in one transaction)
 │           └── sleep inter_queue_delay_s  (skipped after last queue)
 └── _stop_impl()           — releases fetcher and DuckDB connection
 ```
@@ -414,6 +414,7 @@ The test suite covers:
 - Empty API response does not raise.
 - Inter-queue `time.sleep` is called exactly once between two queues, and not at all after the last queue.
 - A failing queue does not prevent remaining queues from being fetched.
+- **Transaction safety** — all three tables are updated atomically; a simulated mid-write failure triggers ROLLBACK, leaving the previous committed data intact with no partial updates.
 
 HTTP calls are mocked with `unittest.mock.patch` so no network access is required during tests.
 

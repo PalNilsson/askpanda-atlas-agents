@@ -427,3 +427,88 @@ class TestOneShot:
 
         mock_sleep.assert_not_called()
         agent.stop()
+
+
+# ===========================================================================
+# Transaction / concurrency safety
+# ===========================================================================
+
+class TestBigPandaFetcherTransactionSafety:
+    """Verify that _fetch_and_persist() wraps all three table writes in one transaction.
+
+    A concurrent reader must never see a state where some tables have been
+    updated for a queue cycle and others have not.  These tests confirm:
+
+    * All three tables are updated atomically on success.
+    * A simulated mid-write failure triggers a ROLLBACK, leaving the previous
+      committed data intact (no partial updates).
+    """
+
+    def test_all_three_tables_updated_on_success(self, conn, sample_payload):
+        """jobs, selectionsummary, and errors_by_count are all populated after a cycle."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = sample_payload
+        mock_response.raise_for_status.return_value = None
+
+        fetcher = BigPandaJobsFetcher(conn=conn, queues=["SWT2_CPB"], cycle_interval_s=0)
+        with patch(
+            "bamboo_mcp_services.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
+            return_value=mock_response,
+        ):
+            fetcher.run_cycle()
+
+        job_count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        summary_count = conn.execute("SELECT COUNT(*) FROM selectionsummary").fetchone()[0]
+        error_count = conn.execute("SELECT COUNT(*) FROM errors_by_count").fetchone()[0]
+
+        assert job_count > 0
+        assert summary_count > 0
+        assert error_count > 0
+
+    def test_failed_mid_write_rolls_back_all_tables(self, conn, sample_payload):
+        """If _insert_errors raises, neither jobs nor selectionsummary are updated."""
+        # Populate baseline data for SWT2_CPB.
+        mock_response = MagicMock()
+        mock_response.json.return_value = sample_payload
+        mock_response.raise_for_status.return_value = None
+
+        fetcher = BigPandaJobsFetcher(conn=conn, queues=["SWT2_CPB"], cycle_interval_s=0)
+        with patch(
+            "bamboo_mcp_services.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
+            return_value=mock_response,
+        ):
+            fetcher.run_cycle()
+
+        baseline_jobs = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE _queue = 'SWT2_CPB'"
+        ).fetchone()[0]
+        assert baseline_jobs > 0
+
+        # Second cycle: _insert_errors will raise after jobs and summary are written.
+        new_payload = dict(sample_payload)
+        new_payload["jobs"] = [
+            {
+                "pandaid": 99999,
+                "computingsite": "SWT2_CPB",
+                "jobstatus": "running",
+                "taskid": 1,
+                "jeditaskid": 2,
+            }
+        ]
+        mock_response.json.return_value = new_payload
+        fetcher._last_cycle_time = 0.0  # reset interval so the cycle runs again
+
+        with patch(
+            "bamboo_mcp_services.agents.ingestion_agent.bigpanda_jobs_fetcher.requests.get",
+            return_value=mock_response,
+        ), patch.object(
+            fetcher, "_insert_errors", side_effect=RuntimeError("simulated error-table failure")
+        ):
+            fetcher.run_cycle()
+
+        # The baseline job (pandaid=12345) should still be present; pandaid=99999 must not.
+        surviving_ids = [
+            r[0] for r in conn.execute("SELECT pandaid FROM jobs WHERE _queue = 'SWT2_CPB'").fetchall()
+        ]
+        assert 12345 in surviving_ids, "Baseline row must survive ROLLBACK"
+        assert 99999 not in surviving_ids, "New row must not be committed after ROLLBACK"

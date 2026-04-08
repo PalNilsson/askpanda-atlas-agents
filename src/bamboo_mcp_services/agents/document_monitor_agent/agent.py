@@ -120,7 +120,20 @@ class DocumentMonitorAgent(Agent):
         return True, h, prev_chunk_ids
 
     def _ingest_file(self, path_str: str, text: str, h: str, prev_chunk_ids: list) -> None:
-        """Chunk, embed, and store a single file into ChromaDB, then update the checkpoint."""
+        """Chunk, embed, and store a single file into ChromaDB, then update the checkpoint.
+
+        To avoid a window where the document is invisible to concurrent readers
+        (which would occur between deleting old chunks and finishing the new
+        inserts), this method uses an atomic staging swap:
+
+        1. Write all new chunks into a temporary staging collection.
+        2. Delete the old chunks from the live collection.
+        3. Add the new chunks to the live collection from the staging data.
+        4. Drop the staging collection.
+
+        If step 2 or 3 fails the staging collection is cleaned up and the
+        previous chunks remain intact in the live collection.
+        """
         chunks = chunk_text(text, chunk_size=self.chunk_size, overlap=self.chunk_overlap)
         ts = datetime.now(timezone.utc).isoformat()
 
@@ -137,13 +150,6 @@ class DocumentMonitorAgent(Agent):
             for i in range(len(chunks))
         ]
 
-        if prev_chunk_ids:
-            try:
-                self.chroma.delete_documents_by_ids(self.collection, prev_chunk_ids)
-                LOG.debug("Deleted %d previous chunk ids for %s", len(prev_chunk_ids), path_str)
-            except Exception:
-                LOG.exception("Failed to delete previous chunk ids for %s (best-effort)", path_str)
-
         self._ensure_embedder()
         raw_embeddings = self._embedder.encode(chunks, show_progress_bar=False)
         try:
@@ -151,7 +157,36 @@ class DocumentMonitorAgent(Agent):
         except Exception:
             embeddings = [list(map(float, v)) for v in raw_embeddings]
 
-        self.chroma.add_documents(self.collection, ids=ids, documents=chunks, metadatas=metadatas, embeddings=embeddings)
+        # --- Atomic staging swap -------------------------------------------
+        # Write into a staging collection first so the live collection is never
+        # in an empty/partial state when a concurrent query arrives.
+        staging_name = f"{self.collection.name}__staging"
+        self.chroma.delete_collection(staging_name)   # clean up any stale staging
+        staging = self.chroma.create_collection(staging_name)
+
+        try:
+            self.chroma.add_documents(staging, ids=ids, documents=chunks, metadatas=metadatas, embeddings=embeddings)
+        except Exception:
+            self.chroma.delete_collection(staging_name)
+            raise
+
+        # Now swap: remove old chunks from the live collection and add the new
+        # ones.  Even if the delete fails, the old chunks remain visible.
+        try:
+            if prev_chunk_ids:
+                try:
+                    self.chroma.delete_documents_by_ids(self.collection, prev_chunk_ids)
+                    LOG.debug("Deleted %d previous chunk ids for %s", len(prev_chunk_ids), path_str)
+                except Exception:
+                    LOG.exception("Failed to delete previous chunk ids for %s (best-effort)", path_str)
+
+            # Re-read from staging to add into live (staging already has the vectors).
+            self.chroma.add_documents(self.collection, ids=ids, documents=chunks, metadatas=metadatas, embeddings=embeddings)
+        finally:
+            # Always clean up staging, whether the swap succeeded or not.
+            self.chroma.delete_collection(staging_name)
+        # --- End atomic staging swap ----------------------------------------
+
         self.chroma.persist()
         self.checkpoint.mark_processed(path_str, {"content_hash": h, "processed_ts": ts, "chunks": len(chunks), "chunk_ids": ids})
 

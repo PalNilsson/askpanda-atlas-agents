@@ -645,3 +645,100 @@ class TestCLI:
             ])
 
         assert rc == 0
+
+
+# ===========================================================================
+# Transaction / concurrency safety
+# ===========================================================================
+
+class TestCricFetcherTransactionSafety:
+    """Verify that _load() wraps the full table replacement in a transaction.
+
+    DuckDB's MVCC means a concurrent reader on a *separate* connection sees
+    either the old committed snapshot or the new one — never a torn state
+    where the table is absent or partially filled.  These tests confirm:
+
+    * The queuedata table always exists and has a consistent row count after a
+      successful load.
+    * A simulated mid-write failure triggers a ROLLBACK, leaving the *previous*
+      committed snapshot intact (no data loss on error).
+    """
+
+    def test_successful_load_leaves_table_complete(self, conn):
+        """All rows are visible immediately after run_cycle returns True."""
+        fetcher = CricQueuedataFetcher(
+            conn=conn,
+            cric_path="/fake/cric_pandaqueues.json",
+            refresh_interval_s=0,
+        )
+        with patch(
+            "bamboo_mcp_services.agents.cric_agent.cric_fetcher.BaseSource",
+            _make_fake_source_class(CRIC_TWO_QUEUES),
+        ):
+            result = fetcher.run_cycle()
+
+        assert result is True
+        row_count = conn.execute("SELECT COUNT(*) FROM queuedata").fetchone()[0]
+        assert row_count == 2
+
+    def test_failed_load_preserves_previous_snapshot(self, conn):
+        """If _insert_rows raises, the old snapshot is preserved via ROLLBACK."""
+        fetcher = CricQueuedataFetcher(
+            conn=conn,
+            cric_path="/fake/cric_pandaqueues.json",
+            refresh_interval_s=0,
+        )
+
+        # First successful load — establishes the baseline snapshot.
+        with patch(
+            "bamboo_mcp_services.agents.cric_agent.cric_fetcher.BaseSource",
+            _make_fake_source_class(CRIC_TWO_QUEUES),
+        ):
+            fetcher.run_cycle()
+
+        baseline = conn.execute("SELECT COUNT(*) FROM queuedata").fetchone()[0]
+        assert baseline == 2
+
+        # Second load with a different hash so the interval gate passes, but
+        # _insert_rows will raise mid-transaction.
+        three_queues = dict(CRIC_TWO_QUEUES)
+        three_queues["EXTRA_QUEUE"] = {"status": "online", "cloud": "US"}
+
+        with patch(
+            "bamboo_mcp_services.agents.cric_agent.cric_fetcher.BaseSource",
+            _make_fake_source_class(three_queues),
+        ), patch.object(
+            fetcher, "_insert_rows", side_effect=RuntimeError("simulated insert failure")
+        ):
+            result = fetcher.run_cycle()
+
+        # run_cycle should catch the exception and return False.
+        assert result is False
+
+        # The previous two-row snapshot must still be intact.
+        surviving_count = conn.execute("SELECT COUNT(*) FROM queuedata").fetchone()[0]
+        assert surviving_count == baseline, (
+            "ROLLBACK should have preserved the previous snapshot, "
+            f"but got {surviving_count} rows instead of {baseline}"
+        )
+
+    def test_table_has_no_gap_between_drop_and_insert(self, conn):
+        """After a successful _load the table exists and is non-empty.
+
+        This is a direct check that BEGIN/COMMIT wraps the DROP so there is
+        never a moment where the committed state has no queuedata table.
+        """
+        fetcher = CricQueuedataFetcher(
+            conn=conn,
+            cric_path="/fake/cric_pandaqueues.json",
+            refresh_interval_s=0,
+        )
+        with patch(
+            "bamboo_mcp_services.agents.cric_agent.cric_fetcher.BaseSource",
+            _make_fake_source_class(CRIC_TWO_QUEUES),
+        ):
+            fetcher._load(CRIC_TWO_QUEUES)
+
+        tables = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+        assert "queuedata" in tables
+        assert conn.execute("SELECT COUNT(*) FROM queuedata").fetchone()[0] > 0

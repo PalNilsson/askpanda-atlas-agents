@@ -15,8 +15,9 @@ AskPanDA.
   the database write when the content is unchanged — avoiding unnecessary churn
   between CVMFS refresh cycles.
 - Performs a full **replace** of the `queuedata` table on each changed load:
-  `DROP + CREATE + INSERT`. No history is accumulated; the table always
-  reflects the latest CRIC snapshot.
+  `DROP + CREATE + INSERT`, wrapped in an explicit transaction so concurrent
+  readers (e.g. AskPanDA) always see either the previous complete snapshot or
+  the new one — never a missing or partially-filled table.
 - Infers DuckDB column types dynamically from the data (BIGINT, DOUBLE, TEXT)
   so schema changes in CRIC are handled without code changes.
 - Drops three internal `_data`-suffix fields
@@ -405,6 +406,9 @@ The test suite (43 tests) covers:
 - **`run_cycle`** — first load, hash-based skip, changed-file reload, stale-row
   replacement after reload, interval gate, health attribute updates, file read
   errors, invalid top-level JSON shape.
+- **Transaction safety** — a simulated mid-write failure triggers ROLLBACK,
+  preserving the previous committed snapshot intact; the `queuedata` table is
+  never absent or partially filled after any write attempt.
 - **`CricAgent` lifecycle** — `config=None` raises, `start`/`stop`
   idempotency, tick delegation, health report contents before and after first
   load.

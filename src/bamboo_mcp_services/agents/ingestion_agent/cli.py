@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.metadata
 import logging
 import logging.handlers
 import os
@@ -18,6 +17,7 @@ from bamboo_mcp_services.agents.ingestion_agent.agent import (
     SourceConfig,
     BigPandaJobsConfig,
 )
+from bamboo_mcp_services.common.cli import log_startup_banner
 from bamboo_mcp_services.agents.ingestion_agent.bigpanda_jobs_fetcher import (
     DEFAULT_QUEUES,
     DEFAULT_CYCLE_INTERVAL_S,
@@ -197,18 +197,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     args = build_parser().parse_args(argv)
     _configure_logging(args.log_file, args.log_level)
-
-    try:
-        _version = importlib.metadata.version("bamboo-mcp-services")
-    except importlib.metadata.PackageNotFoundError:
-        _version = "unknown"
-    logger.info(
-        "bamboo-ingestion  version=%s  python=%s.%s.%s",
-        _version,
-        sys.version_info.major,
-        sys.version_info.minor,
-        sys.version_info.micro,
-    )
+    log_startup_banner(logger, "bamboo-ingestion")
     logger.info("Starting (config=%s)", args.config)
 
     try:

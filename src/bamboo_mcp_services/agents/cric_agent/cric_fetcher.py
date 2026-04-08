@@ -253,6 +253,11 @@ class CricQueuedataFetcher:
         This is a full replacement: DROP + CREATE + INSERT.  No history is
         kept.
 
+        The entire replacement is wrapped in an explicit transaction so that
+        concurrent readers (e.g. AskPanDA via the MCP tool) always observe
+        either the previous complete snapshot or the new complete snapshot —
+        never a torn state where the table is absent or only partially filled.
+
         Args:
             data: Top-level ``{queue_name: {field: value, ...}}`` dict as
                 parsed from ``cric_pandaqueues.json``.
@@ -270,9 +275,14 @@ class CricQueuedataFetcher:
         # The id column is always TEXT regardless of what inference might say.
         schema[_ID_COLUMN] = "TEXT"
 
-        self._create_table(schema)
-        self._insert_rows(rows)
-        self._conn.commit()
+        self._conn.execute("BEGIN")
+        try:
+            self._create_table(schema)
+            self._insert_rows(rows)
+            self._conn.execute("COMMIT")
+        except Exception:
+            self._conn.execute("ROLLBACK")
+            raise
         return len(rows)
 
     def _build_rows(self, data: dict[str, Any]) -> list[dict[str, Any]]:

@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from .agent import DocumentMonitorAgent
 from .embedder_langchain_hf import LangchainHuggingFaceAdapter
+from bamboo_mcp_services.common.cli import log_startup_banner
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    log_startup_banner(logger, "bamboo-document-monitor")
 
     # Suppress verbose third-party loggers — model is loaded from local cache
     for _noisy in ("httpx", "httpcore", "huggingface_hub", "sentence_transformers"):

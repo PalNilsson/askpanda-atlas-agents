@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.metadata
 import logging
 import logging.handlers
 import os
@@ -20,6 +19,7 @@ from bamboo_mcp_services.agents.github_doc_sync_agent.agent import (
 from bamboo_mcp_services.agents.github_doc_sync_agent.github_markdown_sync import (
     RepoConfig,
 )
+from bamboo_mcp_services.common.cli import log_startup_banner
 
 logger = logging.getLogger(__name__)
 
@@ -266,18 +266,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     args = build_parser().parse_args(argv)
     _configure_logging(args.log_file, args.log_level)
-
-    try:
-        _version = importlib.metadata.version("bamboo-mcp-services")
-    except importlib.metadata.PackageNotFoundError:
-        _version = "unknown"
-    logger.info(
-        "bamboo-github-sync  version=%s  python=%s.%s.%s",
-        _version,
-        sys.version_info.major,
-        sys.version_info.minor,
-        sys.version_info.micro,
-    )
+    log_startup_banner(logger, "bamboo-github-sync")
     logger.info("Starting (config=%s)", args.config)
 
     cfg = _load_config_file(args.config)

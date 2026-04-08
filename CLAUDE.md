@@ -35,7 +35,7 @@ pip install -e ".[dev]"   # runtime deps + flake8, pytest, pytest-cov
 # Returning developer:
 conda activate bamboo-mcp-services
 pip install -e .          # pick up any dependency changes
-pytest                    # should show 136 passed
+pytest                    # should show 152 passed
 ```
 
 The project uses a `src/` layout — `pip install -e .` must be run before
@@ -93,7 +93,7 @@ python -c "import duckdb; print(duckdb.connect('cric.db', read_only=True).execut
 ## Tests and linting
 
 ```bash
-pytest                                              # run all 136 tests
+pytest                                              # run all 152 tests
 pytest --cov=bamboo_mcp_services --cov-report=term-missing
 pytest tests/agents/github_doc_sync_agent/ -v      # new agent tests
 pytest tests/agents/cric_agent/ -v                 # CRIC agent tests
@@ -135,6 +135,7 @@ def my_function(x: int, y: str) -> bool:
 ```
 bamboo-mcp-services/
 ├─ CLAUDE.md
+├─ CHANGELOG.md                        ← release notes (Keep a Changelog format)
 ├─ README.md
 ├─ README-ingestion_agent.md
 ├─ README-document_monitor_agent.md
@@ -146,7 +147,8 @@ bamboo-mcp-services/
 ├─ pyproject.toml
 ├─ .flake8
 ├─ scripts/
-│  └─ dump_ingestion_db.py
+│  ├─ dump_ingestion_db.py
+│  └─ bump_version.py                  ← version bump script (see Versioning below)
 ├─ src/bamboo_mcp_services/
 │  ├─ agents/
 │  │  ├─ base.py                       ← Agent ABC and lifecycle state machine
@@ -160,16 +162,18 @@ bamboo-mcp-services/
 │  │  ├─ cric_agent/                   ← CRIC queuedata ingestion
 │  │  └─ dummy_agent/                  ← minimal no-op agent (template)
 │  └─ common/
+│     ├─ cli.py                        ← shared log_startup_banner() helper
 │     ├─ panda/source.py               ← file/URL fetch with content hashing
 │     └─ storage/
 │        ├─ duckdb_store.py
 │        ├─ schema.py
 │        └─ schema_annotations.py      ← field descriptions for LLM prompts
 ├─ tests/
+│  ├─ test_duckdb_store.py             ← DuckDBStore unit tests (new)
 │  └─ agents/
-│     ├─ github_doc_sync_agent/        ← 136 tests
-│     ├─ cric_agent/                   ← 43 tests
-│     ├─ ingestion_agent/              ← 19 tests
+│     ├─ github_doc_sync_agent/        ← 72 tests
+│     ├─ cric_agent/                   ← 46 tests
+│     ├─ ingestion_agent/              ← 21 tests
 │     ├─ dummy_agent/                  ← 2 tests
 │     └─ test_base_agent.py            ← 8 tests
 └─ src/bamboo_mcp_services/resources/config/
@@ -283,10 +287,84 @@ external HTTP APIs.
 
 ---
 
+## Versioning
+
+The package version lives in one place: the `version` field in `pyproject.toml`.
+
+To cut a new release, use the bump script:
+
+```bash
+python scripts/bump_version.py <old_version> <new_version>
+# Example:
+python scripts/bump_version.py 1.0.0 1.1.0
+```
+
+The script validates both strings against PEP 440, updates `pyproject.toml`,
+reports the change, and exits non-zero on any failure.  After bumping, follow
+the printed reminder and reinstall so agents pick up the new version at runtime:
+
+```bash
+pip install -e .
+```
+
+`importlib.metadata` reads the version from the installed package metadata, not
+directly from `pyproject.toml`.  If you skip the reinstall, agents will still
+log the old version.
+
+---
+
+## Startup banner
+
+Every agent CLI logs a startup banner immediately after logging is configured:
+
+```
+bamboo-cric  version=1.0.0  python=3.12.3
+```
+
+This is implemented in `bamboo_mcp_services.common.cli.log_startup_banner()`.
+All four CLI entry points call it — do the same when adding a new agent:
+
+```python
+from bamboo_mcp_services.common.cli import log_startup_banner
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    _configure_logging(args.log_file, args.log_level)
+    log_startup_banner(logger, "bamboo-<agent-name>")
+    ...
+```
+
+---
+
+## Concurrency safety — DuckDB
+
+**Writers**: Each agent holds the single writable DuckDB connection for its
+database file.  All multi-statement write operations (table replacement, queue
+cycle updates) are wrapped in explicit `BEGIN` / `COMMIT` / `ROLLBACK`
+transactions so concurrent readers never observe a torn state.
+
+**Readers** (AskPanDA / Bamboo MCP): Always open DuckDB files with
+`read_only=True`.  DuckDB enforces a single-writer policy — a second
+`read_only=False` connection while the agent is running will either block or
+raise `IOException: Database is already open`.  `read_only=True` connections
+are explicitly allowed to coexist with one writer, and DuckDB's MVCC ensures
+they see a consistent committed snapshot:
+
+```python
+conn = duckdb.connect(database="cric.db", read_only=True)
+conn = duckdb.connect(database="jobs.duckdb", read_only=True)
+```
+
+---
+
 ## Common pitfalls
 
 **`ModuleNotFoundError: bamboo_mcp_services`** — run `pip install -e .` from
 the repo root.
+
+**Agent still logs old version after `bump_version.py`** — `importlib.metadata`
+reads the version baked in at install time, not live from `pyproject.toml`.
+Run `pip install -e .` after every bump.
 
 **`duckdb: command not found`** — `pip install duckdb` installs the Python
 package only, not the CLI binary.  Use `brew install duckdb` on macOS.

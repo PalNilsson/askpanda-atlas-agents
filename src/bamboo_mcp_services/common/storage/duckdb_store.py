@@ -51,6 +51,11 @@ class DuckDBStore:
     def write_table(self, table_name: str, rows: list[dict[str, Any]], overwrite: bool = False) -> None:
         """Write data rows to a table.
 
+        When *overwrite* is ``True`` the entire DROP + CREATE + INSERT sequence
+        is wrapped in an explicit transaction so that concurrent readers always
+        observe either the previous complete table or the new one — never a torn
+        state where the table is absent or partially filled.
+
         Args:
             table_name: Name of the target table.
             rows: List of dictionaries to insert. Each row is stored as JSON.
@@ -60,10 +65,20 @@ class DuckDBStore:
         if not rows:
             return
         if overwrite:
-            self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-        self._conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} (data JSON, updated_utc TIMESTAMP)")
-        for r in rows:
-            self._conn.execute("INSERT INTO {tn} VALUES (?, ?)".format(tn=table_name), [json.dumps(r, default=str), datetime.now(timezone.utc)])
+            self._conn.execute("BEGIN")
+            try:
+                self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                self._conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} (data JSON, updated_utc TIMESTAMP)")
+                for r in rows:
+                    self._conn.execute("INSERT INTO {tn} VALUES (?, ?)".format(tn=table_name), [json.dumps(r, default=str), datetime.now(timezone.utc)])
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+        else:
+            self._conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} (data JSON, updated_utc TIMESTAMP)")
+            for r in rows:
+                self._conn.execute("INSERT INTO {tn} VALUES (?, ?)".format(tn=table_name), [json.dumps(r, default=str), datetime.now(timezone.utc)])
 
     def record_snapshot(self, snapshot_id: str, source: str, ok: bool, content_hash: Optional[str] = None, error: Optional[str] = None) -> None:
         """Record metadata for a data snapshot.

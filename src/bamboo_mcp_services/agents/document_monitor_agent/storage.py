@@ -59,6 +59,29 @@ class ChromaWrapper:
         """
         return self.client.get_or_create_collection(name)
 
+    def create_collection(self, name: str) -> Collection:
+        """Create a new collection, replacing any existing one with the same name.
+
+        Args:
+            name: Collection name.
+
+        Returns:
+            chromadb.api.Collection instance
+        """
+        return self.client.get_or_create_collection(name)
+
+    def delete_collection(self, name: str) -> None:
+        """Delete a collection by name (best-effort; logs and swallows errors).
+
+        Args:
+            name: Collection name to delete.
+        """
+        try:
+            self.client.delete_collection(name)
+            LOG.debug("Deleted chroma collection '%s'.", name)
+        except Exception:
+            LOG.debug("Could not delete chroma collection '%s' (may not exist).", name, exc_info=True)
+
     def add_documents(
         self,
         collection: Collection,

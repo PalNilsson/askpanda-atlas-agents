@@ -114,7 +114,12 @@ class BigPandaJobsFetcher:
         )
         fetched_utc = datetime.now(timezone.utc)
 
+        total = len(self.queues)
         for i, queue in enumerate(self.queues):
+            logger.info(
+                "BigPandaJobsFetcher: processing queue %r (%d/%d)",
+                queue, i + 1, total,
+            )
             try:
                 self._fetch_and_persist(queue, fetched_utc)
             except KeyboardInterrupt:
@@ -185,6 +190,12 @@ class BigPandaJobsFetcher:
     def _fetch_and_persist(self, queue: str, fetched_utc: datetime) -> None:
         """Download jobs JSON for *queue* and upsert into DuckDB.
 
+        All three table writes (``jobs``, ``selectionsummary``,
+        ``errors_by_count``) are wrapped in a single transaction so that a
+        concurrent reader always observes a consistent view of an entire
+        fetch cycle for this queue — never a state where some tables have
+        been updated and others have not.
+
         Args:
             queue: BigPanda computing-site identifier (e.g. ``"SWT2_CPB"``).
             fetched_utc: Timestamp to stamp every persisted row with.
@@ -210,10 +221,15 @@ class BigPandaJobsFetcher:
 
         ts = fetched_utc.strftime("%Y-%m-%d %H:%M:%S")
 
-        self._upsert_jobs(jobs, queue, ts)
-        self._insert_summary(summary, queue, ts)
-        self._insert_errors(errors, queue, ts)
-        self._conn.commit()
+        self._conn.execute("BEGIN")
+        try:
+            self._upsert_jobs(jobs, queue, ts)
+            self._insert_summary(summary, queue, ts)
+            self._insert_errors(errors, queue, ts)
+            self._conn.execute("COMMIT")
+        except Exception:
+            self._conn.execute("ROLLBACK")
+            raise
 
     # ------------------------------------------------------------------
     # Per-table persistence helpers
